@@ -102,7 +102,7 @@ def contact_update(id):
             photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
     if len(result) == 0:
-        return "Такого ID не существует"
+        return "Такого ID не существует", 404
     else:
         sql = f'''
             UPDATE Contacts
@@ -130,7 +130,7 @@ def contact_delete(id):
     result = cur.fetchall()
 
     if len(result) == 0:
-        return "Такого ID не существует"
+        return "Такого ID не существует", 404
     else:
         sql = f'''
             DELETE FROM Contacts 
