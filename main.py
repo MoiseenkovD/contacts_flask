@@ -1,16 +1,12 @@
-from flask import Flask, request, jsonify, send_from_directory
+import os
 import sqlite3
+from flask import Flask, request, jsonify, send_from_directory
 from utils import allowed_file
 from werkzeug.utils import secure_filename
-import os
 
 
 app = Flask(__name__, static_url_path='')
 app.config['UPLOAD_FOLDER'] = "photos"
-
-@app.route("/")
-def test():
-    return "successful test"
 
 @app.route('/photos/<path:path>')
 def send_js(path):
@@ -19,6 +15,8 @@ def send_js(path):
 
 @app.route("/contacts", methods=["GET"])
 def contact_read():
+    search = request.args.get('search')
+
     con = sqlite3.connect('example.db')
     con.row_factory = sqlite3.Row
     cur = con.cursor()
@@ -26,6 +24,15 @@ def contact_read():
     sql = '''
        SELECT * FROM Contacts;
     '''
+
+    if search is not None:
+        sql = f'''
+                SELECT * 
+                FROM Contacts 
+                WHERE Name LIKE '%{search}%' 
+                    OR  Surname LIKE '%{search}%'
+                ;
+            '''
 
     cur.execute(sql)
     rows = cur.fetchall()
@@ -84,6 +91,7 @@ def contact_update(id):
     street = request.form.get("street")
 
     con = sqlite3.connect('example.db')
+    con.row_factory = sqlite3.Row
     cur = con.cursor()
 
     sql1 = f'''
@@ -91,19 +99,23 @@ def contact_update(id):
         '''
 
     cur.execute(sql1)
-    result = cur.fetchall()
+    result = cur.fetchone()
     filename = ""
 
 
-    if 'photo' in request.files:
-        photo = request.files['photo']
-        if photo and allowed_file(photo.filename):
-            filename = secure_filename(photo.filename)
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-    if len(result) == 0:
+    if result is None:
         return "Такого ID не существует", 404
     else:
+        contact = dict(result)
+        if contact["Photo"] is not None and contact["Photo"] != "":
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], contact["Photo"]))
+
+        if 'photo' in request.files:
+            photo = request.files['photo']
+            if photo and allowed_file(photo.filename):
+                filename = secure_filename(photo.filename)
+                photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
         sql = f'''
             UPDATE Contacts
             SET Name = '{name}', Surname = '{surname}', Phone= '{phone}',
@@ -120,6 +132,7 @@ def contact_update(id):
 @app.route("/contacts/<id>", methods=["DELETE"])
 def contact_delete(id):
     con = sqlite3.connect('example.db')
+    con.row_factory = sqlite3.Row
     cur = con.cursor()
 
     sql1 = f'''
@@ -127,11 +140,15 @@ def contact_delete(id):
     '''
 
     cur.execute(sql1)
-    result = cur.fetchall()
+    result = cur.fetchone()
 
-    if len(result) == 0:
+    if result is None:
         return "Такого ID не существует", 404
     else:
+        contact = dict(result)
+        if contact["Photo"] is not None and contact["Photo"] != "":
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], contact["Photo"]))
+
         sql = f'''
             DELETE FROM Contacts 
             WHERE ID='{id}';
@@ -141,7 +158,6 @@ def contact_delete(id):
         con.commit()
         con.close()
         return 'contact_delete'
-
 
 app.run(debug=True)
 
